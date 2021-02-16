@@ -1,5 +1,6 @@
 #include "NativeEngine.h"
 #include "ShaderCompiler.h"
+#include "../../../Dependencies/bgfx.cmake/bgfx/src/config.h"
 #include <arcana/threading/task.h>
 #include <arcana/threading/task_schedulers.h>
 
@@ -315,9 +316,19 @@ namespace Babylon
         void SetAsBgfxVertexBuffer(uint8_t index, uint32_t startVertex, bgfx::VertexLayoutHandle layout) const
         {
             const auto nonDynamic = [index, startVertex, layout](auto handle) {
+                if (handle.idx >= bgfx::getCaps()->limits.maxVertexBuffers)
+                {
+                    throw std::runtime_error("Unable to allocate vertex buffer.");
+                }
+
                 bgfx::setVertexBuffer(index, handle, startVertex, UINT32_MAX, layout);
             };
             const auto dynamic = [index, startVertex, layout](auto handle) {
+                if (handle.idx >= bgfx::getCaps()->limits.maxVertexBuffers)
+                {
+                    throw std::runtime_error("Unable to allocate vertex buffer.");
+                }
+
                 bgfx::setVertexBuffer(index, handle, startVertex, UINT32_MAX, layout);
             };
             DoForHandleTypes(nonDynamic, dynamic);
@@ -589,7 +600,17 @@ namespace Babylon
         for (auto vertexBufferPair : vertexBuffers)
         {
             const auto& vertexBuffer = vertexBufferPair.second;
-            vertexBuffer.data->SetAsBgfxVertexBuffer(static_cast<uint8_t>(vertexBufferPair.first), vertexBuffer.startVertex, vertexBuffer.vertexLayoutHandle);
+
+            try
+            {
+                vertexBuffer.data->SetAsBgfxVertexBuffer(
+                    static_cast<uint8_t>(vertexBufferPair.first),
+                    vertexBuffer.startVertex, vertexBuffer.vertexLayoutHandle);
+            }
+            catch (const std::exception& ex)
+            {
+                throw Napi::Error::New(info.Env(), ex.what());
+            }
         }
     }
 
